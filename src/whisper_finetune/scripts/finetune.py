@@ -78,12 +78,10 @@ def main_loop(
         lora_tracker = LoRAUpdateTracker(model)
         print("LoRA debug logging enabled - tracking parameter norms, gradient norms, and updates")
 
-    # Initial evaluation with new multi-dataset evaluator
+    # Initial evaluation — comprehensive metrics (WER, CER, NLL, log-prob, entropy, ECE) printed via rich when available
     print("\nRunning initial evaluation...")
-    dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
+    dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config, step=0)
     min_wer = macro_metrics["macro_wer"]
-
-    print(f"Initial Macro WER: {min_wer:.4f}")
     log_metrics_to_wandb(dataset_metrics, macro_metrics, step=0, prefix="val")
 
     pbar = tqdm(range(1, t_config["train_steps"] + 1))
@@ -101,8 +99,8 @@ def main_loop(
         if (step % t_config["val_steps"]) == 0 or step == t_config["train_steps"]:
             # Note: LoRA debug info is logged in train_step at eval steps (captures gradients before optimizer.step)
             
-            # Evaluate on all validation datasets
-            dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config)
+            # Evaluate on all validation datasets — comprehensive metrics printed (rich table + panel when available)
+            dataset_metrics, macro_metrics = evaluate_multiple_datasets(model, dev_loaders, t_config, step=step)
             eval_wer = macro_metrics["macro_wer"]
 
             tqdm.write(f"Step {step}: Macro WER={eval_wer:.4f}")

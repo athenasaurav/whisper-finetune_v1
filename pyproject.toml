@@ -25,6 +25,7 @@ dependencies = [
     "pyloudnorm==0.1.1",
     "pyroomacoustics==0.8.4",
     "numpy<2.0.0",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +37,10 @@ dev = [
     # Testing
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+]
+display = [
+    # rich is now in main deps for colored eval metrics; keep here for extras
+    "rich>=13.0.0",
 ]
 
 [build-system]

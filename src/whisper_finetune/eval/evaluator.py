@@ -7,6 +7,15 @@ import time
 from typing import Dict, List, Tuple
 
 import torch
+
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+
+    _RICH_AVAILABLE = True
+except ImportError:
+    _RICH_AVAILABLE = False
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -23,6 +32,79 @@ from whisper_finetune.eval.metrics import (
     compute_wer,
 )
 from whisper_finetune.eval.utils import VOCAB_SPECS, normalize_text
+
+
+def _print_eval_metrics(
+    dataset_metrics: List[DatasetMetrics],
+    macro_metrics: Dict[str, float],
+    step: int | None = None,
+) -> None:
+    """Print comprehensive metrics (WER, CER, NLL, log-prob, entropy, ECE) with rich tables if available."""
+    step_label = f" — Step {step}" if step is not None else ""
+    title = f"Comprehensive Metrics 🆕{step_label}"
+    if _RICH_AVAILABLE:
+        console = Console()
+        # Per-dataset table
+        table = Table(
+            title=f"[bold cyan]{title}[/] — Per-dataset",
+            show_header=True,
+            header_style="bold magenta",
+            border_style="blue",
+        )
+        table.add_column("Dataset", style="cyan")
+        table.add_column("Samples", justify="right", style="dim")
+        table.add_column("WER ↓", justify="right", style="red")
+        table.add_column("CER ↓", justify="right", style="red")
+        table.add_column("NLL ↓", justify="right", style="yellow")
+        table.add_column("Log-prob ↑", justify="right", style="green")
+        table.add_column("Entropy", justify="right", style="dim")
+        table.add_column("ECE ↓", justify="right", style="yellow")
+        table.add_column("ms/sample", justify="right", style="dim")
+        for dm in dataset_metrics:
+            ms = f"{dm.inference_ms_per_sample:.1f}" if dm.inference_ms_per_sample is not None else "—"
+            table.add_row(
+                dm.dataset_name,
+                str(dm.num_samples),
+                f"{dm.wer:.4f}",
+                f"{dm.cer:.4f}",
+                f"{dm.mean_token_nll:.4f}",
+                f"{dm.avg_log_prob:.4f}",
+                f"{dm.mean_token_entropy:.4f}",
+                f"{dm.ece:.4f}",
+                ms,
+            )
+        console.print(table)
+        # Macro panel
+        macro_lines = []
+        for k, v in macro_metrics.items():
+            if v is not None:
+                macro_lines.append(f"  [bold]{k}[/]: [cyan]{v:.4f}[/]")
+            else:
+                macro_lines.append(f"  [bold]{k}[/]: N/A")
+        console.print(
+            Panel(
+                "\n".join(macro_lines),
+                title="[bold green]Macro averages (unweighted)[/]",
+                border_style="green",
+            )
+        )
+    else:
+        print(f"\n{'='*60}")
+        print(f"{title}")
+        print(f"{'='*60}")
+        for dm in dataset_metrics:
+            print(f"\n[Dataset: {dm.dataset_name}]")
+            print(f"  Samples: {dm.num_samples}")
+            print(f"  WER: {dm.wer:.4f}  CER: {dm.cer:.4f}")
+            print(f"  NLL: {dm.mean_token_nll:.4f}  Log-prob: {dm.avg_log_prob:.4f}")
+            print(f"  Entropy: {dm.mean_token_entropy:.4f}  ECE: {dm.ece:.4f}")
+            if dm.inference_ms_per_sample is not None:
+                print(f"  Inference: {dm.inference_ms_per_sample:.2f} ms/sample")
+        print(f"\n{'='*60}")
+        print("MACRO AVERAGES")
+        print(f"{'='*60}")
+        for k, v in macro_metrics.items():
+            print(f"  {k}: {v:.4f}" if v is not None else f"  {k}: N/A")
 
 
 @torch.no_grad()
@@ -155,6 +237,7 @@ def evaluate_multiple_datasets(
     model: Whisper,
     dataloaders: Dict[str, DataLoader],
     t_config: dict,
+    step: int | None = None,
 ) -> Tuple[List[DatasetMetrics], Dict[str, float]]:
     """
     Evaluate model on multiple validation datasets.
@@ -163,6 +246,7 @@ def evaluate_multiple_datasets(
         model: Whisper model to evaluate
         dataloaders: Dictionary mapping dataset names to their DataLoaders
         t_config: Training configuration dict
+        step: Optional training step (for display: 0=initial, N=periodic, final=last step)
 
     Returns:
         Tuple of:
@@ -176,36 +260,17 @@ def evaluate_multiple_datasets(
     all_dataset_metrics = []
 
     for dataset_name, dataloader in dataloaders.items():
-        print(f"\n{'='*60}")
-        print(f"Evaluating dataset: {dataset_name}")
-        print(f"{'='*60}")
+        if _RICH_AVAILABLE:
+            Console().print(f"[dim]Evaluating dataset: {dataset_name}[/]")
+        else:
+            print(f"\nEvaluating dataset: {dataset_name}")
 
         dataset_metrics = evaluate_single_dataset(model, dataloader, dataset_name, t_config, tokenizer)
         all_dataset_metrics.append(dataset_metrics)
 
-        # Print dataset-level metrics
-        print(f"\nResults for {dataset_name}:")
-        print(f"  Samples: {dataset_metrics.num_samples}")
-        print(f"  WER: {dataset_metrics.wer:.4f}")
-        print(f"  CER: {dataset_metrics.cer:.4f}")
-        print(f"  Mean Token NLL: {dataset_metrics.mean_token_nll:.4f}")
-        print(f"  Avg Log Prob: {dataset_metrics.avg_log_prob:.4f}")
-        print(f"  Mean Token Entropy: {dataset_metrics.mean_token_entropy:.4f}")
-        print(f"  ECE: {dataset_metrics.ece:.4f}")
-        if dataset_metrics.inference_ms_per_sample is not None:
-            print(f"  Inference: {dataset_metrics.inference_ms_per_sample:.2f} ms/sample, {dataset_metrics.inference_samples_per_sec:.1f} samples/s")
-
-    # Compute macro averages
+    # Compute macro averages and print comprehensive metrics (rich table + panel or plain)
     macro_metrics = compute_macro_average(all_dataset_metrics)
-
-    print(f"\n{'='*60}")
-    print("MACRO AVERAGES (unweighted across datasets)")
-    print(f"{'='*60}")
-    for metric_name, metric_value in macro_metrics.items():
-        if metric_value is not None:
-            print(f"  {metric_name}: {metric_value:.4f}")
-        else:
-            print(f"  {metric_name}: N/A")
+    _print_eval_metrics(all_dataset_metrics, macro_metrics, step=step)
 
     return all_dataset_metrics, macro_metrics
 
