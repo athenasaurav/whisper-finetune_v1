@@ -82,6 +82,16 @@ Use **`configs/sada22_full.yaml`**. Main options:
 | `dataset.default_language` / `language` | `ar` | Arabic |
 | `dataset.batch_size` | `16` | Tune down if OOM (e.g. 8) |
 | `training.epochs` | `2` | Increase if you want more epochs |
+| **`upload.repo_id`** | **`YOUR_HF_USERNAME/whisper-large-v3-turbo-sada22`** | **Where to set the name for training + Hub push** (see below) |
+
+### Where to set the name (training + Hub push)
+
+Set **one name** in the config and it is used for **auto-pushing the best model** to your Hugging Face Hub:
+
+- In **`configs/sada22_full.yaml`**, edit the **`upload`** section:
+  - **`upload.repo_id`**: Your Hub repo ID, e.g. **`athenasaurav/whisper-large-v3-turbo-sada22`** (replace with your HF username and the repo name you want).
+  - **`upload.push_to_hub: true`**: Enables auto-push after training.
+- After training finishes, the script uses **`HF_TOKEN`** from your `.env` and pushes **`best_model.pt`** (and optionally the faster-whisper version) to **`https://huggingface.co/<upload.repo_id>`**. You do not need to find or run a separate upload step.
 
 ---
 
@@ -121,16 +131,17 @@ If you want **more training**:
 
 ## 6. After Training
 
-- **Best checkpoint**: `output/<run>/best_model.pt`
+- **Best checkpoint**: saved locally at `output/<run>/best_model.pt`.
+- **Auto-push to Hub**: if **`upload.push_to_hub: true`** and **`upload.repo_id`** are set in the config and **`HF_TOKEN`** is set in `.env`, the **best** model is pushed automatically to **`https://huggingface.co/<upload.repo_id>`** (both `.pt` and faster-whisper format by default). No need to find the best model or run a separate upload script.
 - **Merge LoRA** (only for LoRA runs): not needed for full fine-tuning.
-- **Convert to faster-whisper**: use the repo’s conversion script with `best_model.pt` and the turbo tokenizer/config (e.g. `whisper_v3_turbo_utils/`).
 
 ---
 
 ## Summary
 
 1. Install deps: `pip install -e .`
-2. Use dataset: `MahmoudIbrahim/60k-SADA22_Saudi`, columns `audio` + `cleaned_text`.
-3. Use config: `configs/sada22_full.yaml` (sets `text_column: cleaned_text`, `train_val_split_fraction: 0.1`).
-4. Run: `python src/whisper_finetune/scripts/finetune.py --config configs/sada22_full.yaml` (or via SLURM).
-5. Check `output/<run>/best_model.pt` and W&B for WER/CER and latency.
+2. Set **`.env`** with **`HF_TOKEN`** (and optionally W&B).
+3. In **`configs/sada22_full.yaml`**, set **`upload.repo_id`** to your Hub repo (e.g. `athenasaurav/whisper-large-v3-turbo-sada22`). Same name is used for auto-push.
+4. Use dataset: `MahmoudIbrahim/60k-SADA22_Saudi`, columns `audio` + `cleaned_text`.
+5. Run: `python src/whisper_finetune/scripts/finetune.py --config configs/sada22_full.yaml` (or via SLURM).
+6. Best model is saved locally and, if `upload.push_to_hub` and `HF_TOKEN` are set, pushed automatically to `https://huggingface.co/<upload.repo_id>`.

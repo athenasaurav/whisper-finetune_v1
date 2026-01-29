@@ -162,6 +162,98 @@ def convert_to_ct2(
     return ct2_output_dir
 
 
+def upload_best_model_from_training(
+    save_dir: str | Path,
+    repo_id: str,
+    *,
+    tokenizer_dir: str | Path = "whisper_v3_turbo_utils",
+    upload_pt: bool = True,
+    upload_ct2: bool = True,
+    private: bool = True,
+    ct2_quantization: str = "float16",
+    work_dir: str | Path = "./upload_work",
+) -> None:
+    """Upload best_model.pt from a training run to Hugging Face Hub.
+
+    Uses HF_TOKEN from environment. Call this after training if config has upload.push_to_hub and upload.repo_id.
+
+    Args:
+        save_dir: Training output dir containing best_model.pt (e.g. output/12345).
+        repo_id: HF repo ID (e.g. "username/whisper-large-v3-turbo-sada22").
+        tokenizer_dir: Dir with tokenizer.json and config.json (e.g. whisper_v3_turbo_utils).
+        upload_pt: Upload the .pt checkpoint.
+        upload_ct2: Also convert to faster-whisper and upload.
+        private: Create repo as private.
+        ct2_quantization: Quantization for CTranslate2 (e.g. float16).
+        work_dir: Temp dir for conversion.
+    """
+    save_dir = Path(save_dir)
+    tokenizer_dir = Path(tokenizer_dir)
+    work_dir = Path(work_dir)
+    best_path = save_dir / "best_model.pt"
+    if not best_path.exists():
+        print(f"upload_best_model_from_training: {best_path} not found, skipping Hub upload.")
+        return
+    if not os.environ.get("HF_TOKEN"):
+        print("upload_best_model_from_training: HF_TOKEN not set, skipping Hub upload.")
+        return
+
+    repo_name = repo_id.split("/")[-1]
+    hf_model_folder = work_dir / "hf_models" / f"hf_{repo_name}"
+    ct2_output_dir = work_dir / "ct2_output" / repo_name
+    ensure_dir(hf_model_folder)
+    ensure_dir(ct2_output_dir)
+
+    readme_text = f"""# {repo_name}
+
+Fine-tuned Whisper model. Uploaded automatically from training.
+
+## Contents
+
+"""
+    if upload_pt:
+        readme_text += "- `best_model.pt`: OpenAI Whisper format checkpoint\n"
+    if upload_ct2:
+        readme_text += "- CTranslate2/faster-whisper model files (at repo root)\n"
+    if upload_ct2:
+        readme_text += f"""
+## Usage with faster-whisper
+
+```python
+from faster_whisper import WhisperModel
+
+model = WhisperModel("{repo_id}", device="cuda", compute_type="{ct2_quantization}")
+segments, info = model.transcribe("audio.mp3")
+
+for segment in segments:
+    print(f"[{{segment.start:.2f}}s -> {{segment.end:.2f}}s] {{segment.text}}")
+```
+"""
+
+    pt_to_upload = best_path if upload_pt else None
+    ct2_folder = None
+    if upload_ct2:
+        print("Converting best_model.pt to faster-whisper format...")
+        ct2_folder = convert_to_ct2(
+            checkpoint_path=best_path,
+            hf_model_folder=hf_model_folder,
+            tokenizer_source_dir=tokenizer_dir,
+            ct2_output_dir=ct2_output_dir,
+            ct2_quantization=ct2_quantization,
+            load_as_float16=ct2_quantization in ("float16", "int8_float16"),
+            readme_text=None,
+        )
+    print(f"Uploading best model to https://huggingface.co/{repo_id} ...")
+    upload_to_hub(
+        repo_id=repo_id,
+        pt_path=pt_to_upload,
+        ct2_folder=ct2_folder,
+        private=private,
+        readme_text=readme_text,
+    )
+    print(f"✓ Best model uploaded to https://huggingface.co/{repo_id}")
+
+
 def upload_to_hub(
     repo_id: str,
     pt_path: Optional[Path] = None,

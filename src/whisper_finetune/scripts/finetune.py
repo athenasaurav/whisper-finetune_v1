@@ -465,6 +465,25 @@ def main(config):
 
     print(f"Peak memory usage: {peak_memory_mb:.2f} MB")
 
+    # Auto-push best model to Hugging Face Hub if config has upload.repo_id and HF_TOKEN is set
+    upload_cfg = config.get("upload", {})
+    if upload_cfg.get("push_to_hub") and upload_cfg.get("repo_id"):
+        if os.environ.get("HF_TOKEN"):
+            from whisper_finetune.scripts.upload_model_to_hub import upload_best_model_from_training
+
+            upload_best_model_from_training(
+                save_dir=config["save_dir"],
+                repo_id=upload_cfg["repo_id"],
+                tokenizer_dir=upload_cfg.get("tokenizer_dir", "whisper_v3_turbo_utils"),
+                upload_pt=upload_cfg.get("upload_pt", True),
+                upload_ct2=upload_cfg.get("upload_ct2", True),
+                private=upload_cfg.get("private", True),
+                ct2_quantization=upload_cfg.get("ct2_quantization", "float16"),
+                work_dir=upload_cfg.get("work_dir", "./upload_work"),
+            )
+        else:
+            print("upload.push_to_hub is True but HF_TOKEN is not set; skipping Hub upload.")
+
     # Save memory log
     if ENABLE_MEMORY_PROFILING:
         handle_cuda_memory_operations(config)
