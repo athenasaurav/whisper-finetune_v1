@@ -178,6 +178,6 @@ downloaded_models/*
 *.rtf
 *.m4a
 hf_models/*
-configs/*.yaml
+# configs/*.yaml  — removed so sada22_full.yaml, arabic_*.yaml etc. are pushed
 *.mp3
 .vscode/*

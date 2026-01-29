@@ -1,0 +1,95 @@
+# Full fine-tuning of whisper-large-v3-turbo on SADA22 Saudi Arabic
+# Dataset: https://huggingface.co/datasets/MahmoudIbrahim/60k-SADA22_Saudi
+# Uses "audio" and "cleaned_text" columns; only "train" split → 90% train / 10% val automatically.
+
+model:
+  init_name: large-v3-turbo
+  bfloat16: false
+
+dataset:
+  train_datasets:
+    - MahmoudIbrahim/60k-SADA22_Saudi
+  select_n_per_t_ds: [null]
+  groupby_col: [null]
+  train_split_name: train
+  valid_split_name: train
+  # Use cleaned_text as transcription target (dataset has "text" and "cleaned_text")
+  text_column: cleaned_text
+  # Dataset has only "train" split: take 10% as validation
+  train_val_split_fraction: 0.1
+  val_datasets: []
+  val_dataset_names: []
+  select_n_per_v_ds: []
+  default_language: ar
+  language: ar
+  no_timestamp_training: false
+  max_prompt_length: 223
+  prompt_use_rate: 0.5
+  no_timestamp_rate: 0.5
+  batch_size: 16
+  batch_size_eval: 32
+
+lr_scheduler:
+  type: linear
+  warmup_steps: 0.1
+
+optimizer:
+  type: adamw
+  8bit: false
+  params:
+    lr: 2.0e-4
+    weight_decay: 0.1
+    betas: [0.9, 0.98]
+    eps: 1.0e-6
+    amsgrad: false
+
+training:
+  accum_grad_steps: 4
+  label_smoothing: 0.05
+  train_only_decoder: false
+  train_only_encoder: false
+  max_grad_norm: 1.0
+  stochastic_depth: 0.1
+  epochs: 2
+  eval_steps: 0.25
+  save_all_checkpoints: false
+  max_train_loss: 25
+  mixed_precision_training: true
+  mp_dtype: fp16
+  gradient_checkpointing_encoder: true
+  gradient_checkpointing_decoder: true
+  measure_inference_latency: true
+
+augmentation:
+  spec_augment:
+    apply: true
+    time_mask_param: 100
+    p: 1.0
+    freq_mask_param: 43
+    time_warp_w: 80
+  deep_spec_augment:
+    apply: true
+    time_mask_param: 100
+    freq_mask_param: 27
+    layer_indices: null
+  bpe_dropout: 0.1
+  extremes_spec_augment:
+    apply: false
+  audio_augment:
+    apply_office_aug: true
+    apply_baseline_aug: true
+
+seed: 42
+save_dir: output
+
+# Auto-push best model to your Hugging Face Hub after training (uses HF_TOKEN from .env)
+# Set this name once: same name is used for training run and for the Hub repo.
+upload:
+  push_to_hub: true
+  repo_id: YOUR_HF_USERNAME/whisper-large-v3-turbo-sada22   # e.g. athenasaurav/whisper-large-v3-turbo-sada22
+  tokenizer_dir: whisper_v3_turbo_utils
+  upload_pt: true
+  upload_ct2: true
+  private: true
+  ct2_quantization: float16
+  work_dir: ./upload_work
