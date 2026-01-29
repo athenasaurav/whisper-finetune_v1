@@ -19,6 +19,45 @@ pip install -e .
 
 ---
 
+## 1.5. .env and HF token
+
+Create a **`.env`** file in the repo root so scripts (and SLURM jobs) can load your Hugging Face token and other settings. **`.env` is gitignored** — never commit it.
+
+**1. Copy the template:**
+
+```bash
+cp .env-template .env
+```
+
+**2. Get a Hugging Face token (if needed):**
+
+- Go to [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
+- Create a token (read for datasets, write if you will upload models).
+- Copy the token (it starts with `hf_`).
+
+**3. Edit `.env` and set `HF_TOKEN`:**
+
+```bash
+# In .env, set (replace with your token; no quotes):
+HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+- **Public datasets only** (e.g. `MahmoudIbrahim/60k-SADA22_Saudi`): you can leave `HF_TOKEN=` empty; download often works without a token.
+- **Gated or private datasets**, or **uploading models to the Hub**: set `HF_TOKEN` to your token.
+
+**4. Optional: adjust paths and W&B**
+
+- `HF_HOME`, `HF_DATASETS_CACHE`: change if you want a different cache dir (e.g. on a shared drive).
+- `HF_DATASETS_OFFLINE=0`, `TRANSFORMERS_OFFLINE=0`: keep `0` so the dataset can be downloaded; set `1` only for fully offline runs.
+- `WANDB_*`: set `WANDB_API_KEY` and your `WANDB_ENTITY`/`WANDB_PROJECT` if you use Weights & Biases.
+
+**5. How it’s loaded**
+
+- **SLURM** (`sc_sbatch.sh`, `sc_sbatch_2gpu.sh`): `export $(cat .env | xargs)` loads `.env` before running the training script.
+- **Local**: either run in a shell that has already run `export $(cat .env | xargs)` or `set -a; source .env; set +a` (Linux/Mac), or use a tool that loads `.env` (e.g. `python-dotenv` if you add it to the script).
+
+---
+
 ## 2. Dataset
 
 - **Name**: `MahmoudIbrahim/60k-SADA22_Saudi`
