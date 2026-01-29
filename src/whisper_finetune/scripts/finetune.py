@@ -284,68 +284,84 @@ def main(config):
 
     # Get datasets
     ds_config = config["dataset"]
-    
-    # Check if warmup dataset sampling is enabled
-    warmup_dataset_idx = ds_config.get("warmup_dataset_idx", None)  # Index of the warmup dataset in train_datasets
-    
+    train_datasets_list = ds_config["train_datasets"]
     default_language = ds_config.get("default_language", "en")
+    text_column = ds_config.get("text_column", "text")
+    train_val_split_fraction = ds_config.get("train_val_split_fraction", None)
+    seed = config.get("seed", 42)
 
-    # Process datasets - get sizes if we need warmup sampling
-    if warmup_dataset_idx is not None:
-        train_dataset, dataset_sizes = process_dataset(
-            ds_config["train_datasets"],
-            ds_config["select_n_per_t_ds"],
-            ds_config["train_split_name"],
-            ds_config["groupby_col"],
-            return_sizes=True,
-            default_language=default_language,
-        )
-        print(f"\nDataset sizes: {dataset_sizes}")
-        print(f"Warmup will use dataset index {warmup_dataset_idx}: {ds_config['train_datasets'][warmup_dataset_idx]}")
-    else:
-        train_dataset = process_dataset(
-            ds_config["train_datasets"],
-            ds_config["select_n_per_t_ds"],
-            ds_config["train_split_name"],
-            ds_config["groupby_col"],
-            default_language=default_language,
-        )
-        dataset_sizes = None
-
-    # Process validation datasets - now supports multiple named datasets
-    # Ensure val_datasets is always a list (wrap single string in list)
     val_datasets_config = ds_config.get("val_datasets", [])
     if isinstance(val_datasets_config, str):
         val_datasets_config = [val_datasets_config]
-    
-    val_dataset_names = ds_config.get("val_dataset_names", None)
 
-    # Auto-generate names if not specified
-    if val_dataset_names is None:
-        val_dataset_names = []
-        for val_ds in val_datasets_config:
-            # If dataset has a /, split and take the part after the last /
-            if "/" in val_ds:
-                name = val_ds.split("/")[-1]
-            else:
-                name = val_ds
-            val_dataset_names.append(name)
+    # Single dataset with built-in train/val split (e.g. dataset has only "train" split)
+    use_builtin_val_split = (
+        train_val_split_fraction is not None
+        and len(train_datasets_list) == 1
+        and (not val_datasets_config or val_datasets_config == train_datasets_list)
+    )
 
-    # Create a dictionary of validation datasets
-    val_datasets_dict = {}
-    # Process each validation dataset separately
-    for i, (val_ds, val_name) in enumerate(zip(val_datasets_config, val_dataset_names)):
-        select_n = ds_config["select_n_per_v_ds"][i] if i < len(ds_config["select_n_per_v_ds"]) else None
-        groupby = ds_config["groupby_col"][i] if i < len(ds_config.get("groupby_col", [])) else None
-
-        val_dataset = process_dataset(
-            [val_ds],
-            [select_n] if select_n is not None else [None],
-            ds_config["valid_split_name"],
-            [groupby] if groupby is not None else [None],
+    if use_builtin_val_split:
+        train_dataset, val_ds = process_dataset(
+            train_datasets_list,
+            ds_config["select_n_per_t_ds"],
+            ds_config["train_split_name"],
+            ds_config["groupby_col"],
             default_language=default_language,
+            text_column=text_column,
+            train_val_split_fraction=train_val_split_fraction,
+            seed=seed,
         )
-        val_datasets_dict[val_name] = val_dataset
+        val_datasets_dict = {"val": val_ds}
+        dataset_sizes = None
+    else:
+        # Check if warmup dataset sampling is enabled
+        warmup_dataset_idx = ds_config.get("warmup_dataset_idx", None)
+
+        if warmup_dataset_idx is not None:
+            train_dataset, dataset_sizes = process_dataset(
+                train_datasets_list,
+                ds_config["select_n_per_t_ds"],
+                ds_config["train_split_name"],
+                ds_config["groupby_col"],
+                return_sizes=True,
+                default_language=default_language,
+                text_column=text_column,
+            )
+            print(f"\nDataset sizes: {dataset_sizes}")
+            print(f"Warmup will use dataset index {warmup_dataset_idx}: {train_datasets_list[warmup_dataset_idx]}")
+        else:
+            train_dataset = process_dataset(
+                train_datasets_list,
+                ds_config["select_n_per_t_ds"],
+                ds_config["train_split_name"],
+                ds_config["groupby_col"],
+                default_language=default_language,
+                text_column=text_column,
+            )
+            dataset_sizes = None
+
+        # Process validation datasets
+        val_dataset_names = ds_config.get("val_dataset_names", None)
+        if val_dataset_names is None:
+            val_dataset_names = []
+            for val_ds in val_datasets_config:
+                name = val_ds.split("/")[-1] if "/" in val_ds else val_ds
+                val_dataset_names.append(name)
+
+        val_datasets_dict = {}
+        for i, (val_ds, val_name) in enumerate(zip(val_datasets_config, val_dataset_names)):
+            select_n = ds_config["select_n_per_v_ds"][i] if i < len(ds_config["select_n_per_v_ds"]) else None
+            groupby = ds_config["groupby_col"][i] if i < len(ds_config.get("groupby_col", [])) else None
+            val_dataset = process_dataset(
+                [val_ds],
+                [select_n] if select_n is not None else [None],
+                ds_config["valid_split_name"],
+                [groupby] if groupby is not None else [None],
+                default_language=default_language,
+                text_column=text_column,
+            )
+            val_datasets_dict[val_name] = val_dataset
 
     # Calculate steps
     config["training"]["train_steps"] = calculate_training_steps(config, train_dataset)

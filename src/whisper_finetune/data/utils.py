@@ -189,7 +189,19 @@ class ExtremesFrequencyMasking:
         return specs
 
 
-def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, print_examples=False, example_count=5, return_sizes=False, default_language="en"):
+def process_dataset(
+    dataset_names,
+    select_n_per_ds,
+    split_name,
+    groupby_col,
+    print_examples=False,
+    example_count=5,
+    return_sizes=False,
+    default_language="en",
+    text_column="text",
+    train_val_split_fraction=None,
+    seed=None,
+):
     """
     Function to process individual datasets with optional groupby sampling,
     filtering out entries with text < 30 chars or audio < 6 seconds, and optionally printing examples.
@@ -203,10 +215,14 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
     - example_count (int): Number of examples to print.
     - return_sizes (bool): If True, also return list of individual dataset sizes.
     - default_language (str): Language code (e.g. "ar", "en") when "language" column is missing. Default "en".
+    - text_column (str): Column to use as transcription target. Renamed to "text" (e.g. "cleaned_text"). Default "text".
+    - train_val_split_fraction (float): If set and len(dataset_names)==1, split into train/val (e.g. 0.1 = 10%% val). Return (train_ds, val_ds).
+    - seed (int): Random seed for train_test_split when train_val_split_fraction is set.
 
     Returns:
-    - concatenated_dataset: A concatenated dataset of all processed datasets.
-    - (optional) dataset_sizes: List of sizes for each dataset (if return_sizes=True)
+    - concatenated_dataset: A concatenated dataset of all processed datasets (or train_ds if train_val_split_fraction).
+    - (optional) dataset_sizes: List of sizes for each dataset (if return_sizes=True).
+    - (optional) val_ds: Validation dataset (if train_val_split_fraction is set and single dataset).
     """
     processed_datasets = []
     dataset_sizes = []
@@ -231,8 +247,10 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         print(f"Processing dataset: {dataset_name}")
         print(f"Original dataset size: {len(dataset)}")
 
-        # Rename 'sentence' or 'transcription' to 'text' if needed
-        if "sentence" in dataset.column_names:
+        # Use the requested text column as transcription target (rename to "text")
+        if text_column != "text" and text_column in dataset.column_names:
+            dataset = dataset.rename_column(text_column, "text")
+        elif "sentence" in dataset.column_names:
             dataset = dataset.rename_column("sentence", "text")
         elif "transcription" in dataset.column_names and "text" not in dataset.column_names:
             dataset = dataset.rename_column("transcription", "text")
@@ -267,9 +285,17 @@ def process_dataset(dataset_names, select_n_per_ds, split_name, groupby_col, pri
         processed_datasets.append(dataset)
         dataset_sizes.append(len(dataset))
 
+    # Single-dataset train/val split (e.g. when dataset has only "train" split)
+    if train_val_split_fraction is not None and len(processed_datasets) == 1 and not return_sizes:
+        single = processed_datasets[0]
+        split = single.train_test_split(test_size=train_val_split_fraction, seed=seed or 42)
+        train_ds, val_ds = split["train"], split["test"]
+        print(f"Train/val split: {len(train_ds)} train, {len(val_ds)} val ({train_val_split_fraction*100:.0f}% val)")
+        return train_ds, val_ds
+
     concatenated = concatenate_datasets(processed_datasets)
     print(f"Total rows in concatenated dataset: {len(concatenated)}")
-    
+
     if return_sizes:
         return concatenated, dataset_sizes
     return concatenated
