@@ -170,9 +170,10 @@ If **WER jumps to 1.0 (100%)** and **NLL / log-prob / entropy are almost identic
 
 - **Cause:** Learning rate **too high** for full fine-tuning of large-v3-turbo (~807M params). `lr: 2e-4` is often used for LoRA or small models but can destabilize full fine-tuning.
 - **Fix:** Lower the learning rate in `configs/sada22_full.yaml`:
-  - Set **`optimizer.params.lr`** to **`5.0e-5`** (or try `1e-5` if still unstable).
-  - Optionally increase **`lr_scheduler.warmup_steps`** to **`0.15`** (15% warmup).
-- **Then:** Restart training from scratch (do not resume the collapsed run). You should see WER start around ~0.77 and **decrease** over steps instead of jumping to 1.0.
+  - Set **`optimizer.params.lr`** to **`5.0e-5`** or **`1e-5`** (if WER/NLL still collapse after a few hundred steps, use `1e-5`).
+  - Increase **`lr_scheduler.warmup_steps`** to **`0.25`** (25% warmup) for stability.
+- **Sign of collapse:** If **NLL, log-prob, and entropy are exactly the same** at two different eval steps (e.g. 2.3903, -0.8637, 2.7094), the model has collapsed again — restart with lower LR.
+- **Then:** Restart training from scratch (do not resume the collapsed run). You should see WER start around ~0.77 and **decrease** over steps; NLL should keep changing (not frozen).
 
 Language code (`ar`) and Arabic normalization are already correct; the issue is training stability, not language or eval.
 

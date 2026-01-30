@@ -31,14 +31,14 @@ dataset:
 
 lr_scheduler:
   type: linear
-  warmup_steps: 0.15  # 15% warmup for stability when fine-tuning
+  warmup_steps: 0.25  # 25% warmup to avoid early collapse
 
 optimizer:
   type: adamw
   8bit: false
   params:
-    # Use 5e-5 for full fine-tuning; 2e-4 often causes collapse (WER → 100%, identical NLL)
-    lr: 5.0e-5
+    # Use 1e-5 for full fine-tuning; 5e-5 can still collapse after ~100–400 steps (identical NLL)
+    lr: 1.0e-5
     weight_decay: 0.1
     betas: [0.9, 0.98]
     eps: 1.0e-6
