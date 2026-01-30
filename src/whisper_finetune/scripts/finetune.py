@@ -300,6 +300,9 @@ def main(config):
         and (not val_datasets_config or val_datasets_config == train_datasets_list)
     )
 
+    warmup_dataset_idx = None
+    dataset_sizes = None
+
     if use_builtin_val_split:
         train_dataset, val_ds = process_dataset(
             train_datasets_list,
@@ -312,7 +315,6 @@ def main(config):
             seed=seed,
         )
         val_datasets_dict = {"val": val_ds}
-        dataset_sizes = None
     else:
         # Check if warmup dataset sampling is enabled
         warmup_dataset_idx = ds_config.get("warmup_dataset_idx", None)
