@@ -315,6 +315,9 @@ class AudioDataset(Dataset):
         decoder_output = self._construct_decoder_output(prompt_tokens, special_tokens, text_tokens)
         audio_arr = record["audio"]["array"]
         del record
+        # Ensure numpy so pad/trim and _calculate_mel (aud_augment, log_mel_spectrogram) get a consistent type
+        if torch.is_tensor(audio_arr):
+            audio_arr = audio_arr.numpy()
 
         # Pad or trim to N_SAMPLES in audio domain (not spectrogram).
         # https://github.com/openai/whisper/discussions/838#discussioncomment-5233715
