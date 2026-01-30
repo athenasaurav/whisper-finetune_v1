@@ -1,6 +1,7 @@
 # Full fine-tuning of whisper-large-v3-turbo on SADA22 Saudi Arabic
-# Dataset: https://huggingface.co/datasets/MahmoudIbrahim/60k-SADA22_Saudi
+# Dataset: https://huggingface.co/datasets/MahmoudIbrahim/60k-SADA22_Saudi (~72h audio)
 # Uses "audio" and "cleaned_text" columns; only "train" split → 90% train / 10% val automatically.
+# 72h is enough for fine-tuning; more data can help further.
 
 model:
   init_name: large-v3-turbo
@@ -30,8 +31,8 @@ dataset:
   batch_size_eval: 32
 
 lr_scheduler:
-  type: linear
-  warmup_steps: 0.25  # 25% warmup to avoid early collapse
+  type: cosine  # gentler decay than linear; helps avoid collapse in second half
+  warmup_steps: 0.25  # 25% warmup
 
 optimizer:
   type: adamw
@@ -51,7 +52,7 @@ training:
   train_only_encoder: false
   max_grad_norm: 1.0
   stochastic_depth: 0.1
-  epochs: 2
+  epochs: 1  # ~566 steps; best was ~step 282 before collapse — add epochs if you add more data
   eval_steps: 0.25
   save_all_checkpoints: false
   max_train_loss: 25

@@ -60,10 +60,12 @@ HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ## 2. Dataset
 
-- **Name**: `MahmoudIbrahim/60k-SADA22_Saudi`
+- **Name**: `MahmoudIbrahim/60k-SADA22_Saudi` (~72h of audio)
 - **Splits**: Only `train` (~40.2k rows)
 - **Columns used**: `audio` (array + sampling_rate), `cleaned_text` (transcription)
 - **Train/val**: The config uses `train_val_split_fraction: 0.1` so 90% train / 10% val are created from `train` automatically.
+
+**Is 72h enough?** Yes for fine-tuning. Many setups use 10–100h; 72h is enough to get clear gains (e.g. WER 77% → ~72%). More data can improve further.
 
 No manual split needed; the code does it.
 
