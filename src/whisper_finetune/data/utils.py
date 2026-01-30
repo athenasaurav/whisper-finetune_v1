@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Union
@@ -9,21 +10,33 @@ from datasets import concatenate_datasets, load_dataset, load_from_disk
 from librosa.feature.inverse import mel_to_audio
 from whisper.audio import HOP_LENGTH, N_FFT, N_SAMPLES
 
+# Network errors that are worth retrying when downloading from the Hub
+_DOWNLOAD_RETRY_EXCEPTIONS = (
+    "IncompleteRead",
+    "ChunkedEncodingError",
+    "ConnectionError",
+    "ConnectionResetError",
+    "TimeoutError",
+    "ProtocolError",
+)
 
-def load_hf_dataset(path_or_name: str, **kwargs):
+
+def load_hf_dataset(path_or_name: str, download_retries: int = 3, **kwargs):
     """
     Load a HuggingFace dataset from either a local path or a remote hub name.
-    
+
     This function automatically detects whether the provided path is a local directory
     (using load_from_disk) or a remote dataset name (using load_dataset).
-    
+    Remote downloads are retried on transient network errors (IncompleteRead, etc.).
+
     Args:
         path_or_name: Either a local path to a saved dataset or a HuggingFace dataset name.
+        download_retries: Number of retries for remote download on network errors (default 3).
         **kwargs: Additional arguments passed to load_dataset (only used for remote datasets).
-    
+
     Returns:
         The loaded dataset (DatasetDict or Dataset).
-    
+
     Examples:
         >>> load_hf_dataset('/path/to/local/dataset')  # Local path
         >>> load_hf_dataset('i4ds/mozilla-cv-13-long-text-de')  # Remote HuggingFace dataset
@@ -32,9 +45,29 @@ def load_hf_dataset(path_or_name: str, **kwargs):
     if p.exists():
         print(f"Loading local dataset from: {path_or_name}")
         return load_from_disk(str(p))
-    else:
-        print(f"Loading remote dataset: {path_or_name}")
-        return load_dataset(path_or_name, **kwargs)
+    print(f"Loading remote dataset: {path_or_name}")
+    last_error = None
+    for attempt in range(download_retries):
+        try:
+            return load_dataset(path_or_name, **kwargs)
+        except Exception as e:
+            last_error = e
+            name = type(e).__name__
+            if name in _DOWNLOAD_RETRY_EXCEPTIONS or "IncompleteRead" in name or "ChunkedEncoding" in name:
+                if attempt < download_retries - 1:
+                    wait = 10 * (attempt + 1)
+                    print(f"Download failed ({name}). Retrying in {wait}s (attempt {attempt + 2}/{download_retries})...")
+                    time.sleep(wait)
+                else:
+                    print(
+                        "Download failed after retries. If the error was IncompleteRead/ChunkedEncodingError, "
+                        "clear the Hugging Face cache for this dataset and retry: "
+                        "rm -rf ~/.cache/huggingface/datasets/<dataset_name>"
+                    )
+                    raise
+            else:
+                raise
+    raise last_error
 
 
 class TimeWarpAugmenter:
@@ -249,8 +282,12 @@ def process_dataset(
 
         # Use the requested text column as transcription target (rename to "text")
         if text_column != "text" and text_column in dataset.column_names:
+            if "text" in dataset.column_names:
+                dataset = dataset.remove_columns(["text"])
             dataset = dataset.rename_column(text_column, "text")
         elif "sentence" in dataset.column_names:
+            if "text" in dataset.column_names:
+                dataset = dataset.remove_columns(["text"])
             dataset = dataset.rename_column("sentence", "text")
         elif "transcription" in dataset.column_names and "text" not in dataset.column_names:
             dataset = dataset.rename_column("transcription", "text")

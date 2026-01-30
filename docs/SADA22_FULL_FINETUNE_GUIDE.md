@@ -137,6 +137,21 @@ If you want **more training**:
 
 ---
 
+## Troubleshooting: Dataset download fails (IncompleteRead / ChunkedEncodingError)
+
+If the first run fails with **IncompleteRead** or **ChunkedEncodingError** while downloading the dataset (e.g. connection dropped mid-download):
+
+1. **Retry** – The script retries up to 3 times with backoff. Often a second run succeeds.
+2. **Clear the cache and retry** – A partial download can leave bad files in the Hugging Face cache. Remove the cached dataset and run again:
+   ```bash
+   rm -rf ~/.cache/huggingface/datasets/MahmoudIbrahim___60k-SADA22_Saudi
+   python src/whisper_finetune/scripts/finetune.py --config configs/sada22_full.yaml
+   ```
+   (Cache path may vary; check `HF_DATASETS_CACHE` in `.env` if you set it.)
+3. **Stable network** – Use a stable connection or VPN; large datasets (e.g. SADA22 ~5GB) are sensitive to drops.
+
+---
+
 ## Summary
 
 1. Install deps: `pip install -e .`
