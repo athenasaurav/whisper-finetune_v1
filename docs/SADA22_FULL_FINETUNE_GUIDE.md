@@ -137,6 +137,47 @@ If you want **more training**:
 
 ---
 
+## 7. Run inference
+
+Use your fine-tuned checkpoint to transcribe audio (single file or a folder):
+
+```bash
+# Single file (prints transcript to stdout)
+python -m whisper_finetune.scripts.inference \
+  --checkpoint output/20260130_090017/best_model.pt \
+  --audio path/to/audio.wav \
+  --language ar
+
+# Folder of audio files; write one .txt per file
+python -m whisper_finetune.scripts.inference \
+  --checkpoint output/<your_run>/best_model.pt \
+  --audio path/to/audio_folder/ \
+  --language ar \
+  --output-dir ./transcripts
+```
+
+- **`--checkpoint`**: path to `best_model.pt` from your training run (e.g. `output/20260130_090017/best_model.pt`).
+- **`--audio`**: path to a single file (`.wav`, `.mp3`, etc.) or a directory (all supported files under it are transcribed).
+- **`--language ar`**: use for Arabic; change for other languages.
+- **`--base-model large-v3-turbo`**: must match the model you trained (default is correct for SADA22 config).
+- **`--output-dir`**: optional; if set, writes one `.txt` per audio file with the transcript.
+
+---
+
+## Troubleshooting: WER goes to 100% or stays very high (model collapse)
+
+If **WER jumps to 1.0 (100%)** and **NLL / log-prob / entropy are almost identical** at every eval step, the model has likely **collapsed**: it is outputting the same (or nearly same) prediction for every input.
+
+- **Cause:** Learning rate **too high** for full fine-tuning of large-v3-turbo (~807M params). `lr: 2e-4` is often used for LoRA or small models but can destabilize full fine-tuning.
+- **Fix:** Lower the learning rate in `configs/sada22_full.yaml`:
+  - Set **`optimizer.params.lr`** to **`5.0e-5`** (or try `1e-5` if still unstable).
+  - Optionally increase **`lr_scheduler.warmup_steps`** to **`0.15`** (15% warmup).
+- **Then:** Restart training from scratch (do not resume the collapsed run). You should see WER start around ~0.77 and **decrease** over steps instead of jumping to 1.0.
+
+Language code (`ar`) and Arabic normalization are already correct; the issue is training stability, not language or eval.
+
+---
+
 ## Troubleshooting: Dataset download fails (IncompleteRead / ChunkedEncodingError)
 
 If the first run fails with **IncompleteRead** or **ChunkedEncodingError** while downloading the dataset (e.g. connection dropped mid-download):
