@@ -213,7 +213,7 @@ def main(config):
     
     if config["training"]["gradient_checkpointing_encoder"]:
         del whisper_model.encoder
-        if config["training"]["gradient_checkpointing_encoder_last_only"]:
+        if config["training"].get("gradient_checkpointing_encoder_last_only", False):
             raise ValueError(
                 "gradient_checkpointing_encoder_last_only is not supported when gradient_checkpointing_encoder is enabled"
             )
