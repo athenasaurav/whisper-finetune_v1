@@ -171,11 +171,12 @@ class AudioDataset(Dataset):
         return len(self.valid_indices)
 
     def _get_prompt_tokens(self, record: Record, no_timestamps: bool) -> List[int]:
-        if torch.rand(1).item() < self.prompt_use_rate and len(record["prompt"]) > 0:
+        prompt = record.get("prompt", "") or ""
+        if torch.rand(1).item() < self.prompt_use_rate and len(prompt) > 0:
             if no_timestamps:
-                prompt_tokens = self._encode_text_without_timestamps(record["prompt"])[-self.max_prompt_length :]
+                prompt_tokens = self._encode_text_without_timestamps(prompt)[-self.max_prompt_length :]
             else:
-                prompt_tokens = self._encode_text_with_timestamps(record["prompt"])[-self.max_prompt_length :]
+                prompt_tokens = self._encode_text_with_timestamps(prompt)[-self.max_prompt_length :]
             prompt_tokens = [self.tokenizer.sot_prev] + prompt_tokens
         else:
             prompt_tokens = []
