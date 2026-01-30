@@ -22,10 +22,15 @@ from audiomentations import (
     OneOf,
     PeakingFilter,
     PitchShift,
-    RoomSimulator,
     Shift,
     TimeStretch,
 )
+
+try:
+    from audiomentations import RoomSimulator
+except ImportError:
+    # pyroomacoustics not installed (optional extra: pip install -e ".[augment-room]")
+    RoomSimulator = None
 
 
 def get_audio_augments_baseline(min_rate: float = 0.8, max_rate: float = 1.25):
@@ -108,46 +113,43 @@ def get_audio_augments_advanced():
 def get_audio_augments_office():
     """
     Augmentation pipeline that adds:
-      • RoomSimulator tuned for a carpeted office
+      • RoomSimulator tuned for a carpeted office (if pyroomacoustics installed; optional extra augment-room)
       • Mp3Compression (8-64 kbps) to mimic uploads from low-quality mics
       • BitCrush (6-14 bits) for cheap-ADC grit
     All transforms keep the sample count unchanged by default.
     """
-
-    office_reverb = OneOf(
-        [
-            RoomSimulator(
-                # Small-ish room (≈ 4 m × 3 m × 2.7 m)
-                min_size_x=3.0,
-                max_size_x=5.0,
-                min_size_y=2.5,
-                max_size_y=4.0,
-                min_size_z=2.4,
-                max_size_z=3.0,
-                # Carpeted surfaces → absorption 0.10-0.20  (office/library value)
-                calculation_mode="absorption",
-                min_absorption_value=0.05,
-                max_absorption_value=0.20,  # :contentReference[oaicite:0]{index=0}
-                # Chop tail so clip length stays intact
-                leave_length_unchanged=True,
-                max_order=3,
-                p=1.0,
-            ),
-        ],
-        p=0.5,
-    )
-
     lo_fi_codecs = OneOf(
         [
             Mp3Compression(
                 min_bitrate=8, max_bitrate=64, backend="pydub", p=1.0
-            ),  # :contentReference[oaicite:1]{index=1}
-            BitCrush(min_bit_depth=6, max_bit_depth=14, p=1.0),  # :contentReference[oaicite:2]{index=2}
+            ),
+            BitCrush(min_bit_depth=6, max_bit_depth=14, p=1.0),
         ],
         p=0.5,
     )
 
-    return Compose([lo_fi_codecs, office_reverb])
+    if RoomSimulator is not None:
+        office_reverb = OneOf(
+            [
+                RoomSimulator(
+                    min_size_x=3.0,
+                    max_size_x=5.0,
+                    min_size_y=2.5,
+                    max_size_y=4.0,
+                    min_size_z=2.4,
+                    max_size_z=3.0,
+                    calculation_mode="absorption",
+                    min_absorption_value=0.05,
+                    max_absorption_value=0.20,
+                    leave_length_unchanged=True,
+                    max_order=3,
+                    p=1.0,
+                ),
+            ],
+            p=0.5,
+        )
+        return Compose([lo_fi_codecs, office_reverb])
+    return Compose([lo_fi_codecs])
 
 
 if __name__ == "__main__":

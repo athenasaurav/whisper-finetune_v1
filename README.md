@@ -45,6 +45,12 @@ Evaluate your model on multiple validation datasets (e.g., clean speech, noisy e
    uv pip install -e .
    ```
 
+   **Linux (Ubuntu/Debian) with Python 3.12:** If the install fails when building `pyroomacoustics` (e.g. `Python.h: No such file or directory`), install the Python development headers first:
+   ```bash
+   sudo apt install python3.12-dev
+   ```
+   Then run `pip install -e .` again. Room simulation in the "office" augmentation is optional; you can also install without it. To add room simulation later: `pip install -e ".[augment-room]"` (requires `python3.12-dev` on Linux).
+
 ## Data
 Please have a look at https://github.com/i4Ds/whisper-prep. The data is passed as a [🤗 Datasets](https://huggingface.co/docs/datasets/en/index) to the script.
 

@@ -13,17 +13,16 @@ dependencies = [
     "pydub==0.25.1",
     "bitsandbytes==0.43.1",
     "datasets==2.17.0",
-    "torchaudio==2.1.2",
+    "torchaudio>=2.1.2",
     "librosa==0.10.1",
     "soundfile==0.12.1; platform_system=='Windows'",
-    "tiktoken @ git+https://github.com/swiss-german-speech-to-text/tiktoken@main",
+    "tiktoken>=0.5.0",
     "transformers==4.53.*",
     "wandb==0.16.2",
     "jiwer==3.0.3",
     "minlora @ git+https://github.com/cccntu/minLoRA.git@main",
     "audiomentations==0.41.0",
     "pyloudnorm==0.1.1",
-    "pyroomacoustics==0.8.4",
     "numpy<2.0.0",
     "rich>=13.0.0",
 ]
@@ -41,6 +40,10 @@ dev = [
 display = [
     # rich is now in main deps for colored eval metrics; keep here for extras
     "rich>=13.0.0",
+]
+# Room simulation (needs python3.12-dev on Linux to build). Install with: pip install -e ".[augment-room]"
+augment-room = [
+    "pyroomacoustics==0.8.4",
 ]
 
 [build-system]
