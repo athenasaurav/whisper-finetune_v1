@@ -316,9 +316,13 @@ class AudioDataset(Dataset):
         audio_arr = record["audio"]["array"]
         del record
 
-        # Pad in audio domain, not spectrogram domain.
+        # Pad or trim to N_SAMPLES in audio domain (not spectrogram).
         # https://github.com/openai/whisper/discussions/838#discussioncomment-5233715
-        audio_arr = np.pad(audio_arr, (0, N_SAMPLES - audio_arr.shape[0]), "constant")
+        n = audio_arr.shape[0]
+        if n < N_SAMPLES:
+            audio_arr = np.pad(audio_arr, (0, N_SAMPLES - n), "constant", constant_values=0)
+        elif n > N_SAMPLES:
+            audio_arr = audio_arr[:N_SAMPLES].copy()
 
         mel = self._calculate_mel(audio_arr, next_partial_segment_start, no_timestamps)
         if index == 0:
