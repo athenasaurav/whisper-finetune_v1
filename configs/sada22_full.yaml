@@ -86,7 +86,7 @@ save_dir: output
 # Set this name once: same name is used for training run and for the Hub repo.
 upload:
   push_to_hub: true
-  repo_id: YOUR_HF_USERNAME/whisper-large-v3-turbo-sada22   # e.g. athenasaurav/whisper-large-v3-turbo-sada22
+  repo_id: athenasaurav/whisper-large-v3-turbo-sada22   # e.g. athenasaurav/whisper-large-v3-turbo-sada22
   tokenizer_dir: whisper_v3_turbo_utils
   upload_pt: true
   upload_ct2: true
